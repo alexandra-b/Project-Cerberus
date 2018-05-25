@@ -2,18 +2,21 @@ import RPi.GPIO as GPIO
 from lib_nrf24 import NRF24
 import time
 import spidev
-import pyrebase
 from datetime import datetime
+from datetime import timezone
+from pytz import timezone
+import serial
+from firebase import firebase
+#import pyrebase
+FIREBASE_ROOT = 'https://guardian-dbd05.firebaseio.com/'
+firebase = firebase.FirebaseApplication(FIREBASE_ROOT, None)
 
-
-
+#Arduino Communication
+serial_port = '/dev/ttyUSB0'
+baud_rate = 9600
+ser = serial.Serial(serial_port, baud_rate)
 # Firebase database to hold data for this whole project
-firebase = pyrebase.initialize_app({
-	"apiKey": "AIzaSyBHPmZUhHvTuOjr5zwCatn8bZ1qfSDM818",
-	"authDomain": "cerberus-baeb0.firebaseapp.com",
-	"databaseURL": "https://cerberus-baeb0.firebaseio.com",
-	"storageBucket": ""
-}).database()
+
 
 '''
 # disable warnings sometimes printed when using SPI bus on Raspberry Pi
@@ -36,31 +39,65 @@ armed = None
 
 def handle(msg):
 	global armed
+	armed = msg["armed"]
+	if armed == "true":
+		print("Listening from Arduino...")
+	if armed == "false":
+		print("STOPPED")
+
+
+	'''
+def handle(msg):
+	global armed
 	now = msg["data"]
 	if now != armed:
 		armed = now
 		if now:
 			print("Listening...")
-			radio.startListening()					# start listening if /armed is True in Firebase
+			#radio.startListening()					# start listening if /armed is True in Firebase
+
+
 		else:
 			print("Stopped!")
-			radio.stopListening()					# stop listening if /armed is False in Firebase
+			#radio.stopListening()					# stop listening if /armed is False in Firebase
+'''
+#stream = firebase.child("/armed").stream(handle) 	# create a stream to listen for changes for /armed in Firebase
 
-stream = firebase.child("/armed").stream(handle) 	# create a stream to listen for changes for /armed in Firebase
-
-
+sensorLocation = "kitchen"
 try:
-	while(1):																				# run countinuously
-        '''
-        while not radio.available(0):														# wait for data to be available from radio
-			time.sleep(1 / 100)																# sleep until data comes in
-		packet = []
-		radio.read(packet, radio.getDynamicPayloadSize())									# read the packet from the radio
-		radio.flush_tx()
-        '''																# flush the transmitter so acknowledgement is sent
-		event = {"time": datetime.now().strftime("%I:%M:%S%p")}#, "sensor": packet[0]}		# create an event object holding the current time, and which sensor detected the motion
-		firebase.child("/events").push(event)												# add this event to the Firebase database
-		print(event)
+    while(1):
+        result = firebase.get('/armed',None)
+        #print(result)
+        if result == 'true':
+            hour = "%H:%M:%S"
+            date = "%d-%m-%Y"
+            now_time = datetime.now(timezone('UTC'))
+            now_RO = now_time.astimezone(timezone('Europe/Athens'))
+            print(now_RO.strftime(hour))
+            print(now_RO.strftime(date))
+            print("Add code of serial stream here")
+            motion = 1
+            dayEventPath = '/events/'+now_RO.strftime(date)+'/Alexa'
+            dayJson = {"start": now_RO.strftime(hour)}
+            firebase.patch(dayEventPath,dayJson)
+            print("Add code of serial stream here")
+            motion = 1
+            if motion == 1:
+                #hour = "%H:%M:%S"
+                #date = "%d-%m-%Y"
+                #now_time = datetime.now(timezone('UTC'))
+                #now_RO = now_time.astimezone(timezone('Europe/Athens'))
+                #print(now_RO.strftime(hour))
+                #print(now_RO.strftime(date))
+                eventJson = {"motion": "detected in {0}".format(sensorLocation)} #add sensor which detected motion
+                #print(event)
+                #print(new_event)
+                eventpath = '/events/'+now_RO.strftime(date)+'/'+now_RO.strftime(hour)
+                print(eventpath)
+                firebase.patch(eventpath,eventJson)
+                time.sleep(2)
+
+
 except KeyboardInterrupt as e:			# catch KeyboardInterrupt
 	stream.close()						# close the stream and exit program
 	print()
