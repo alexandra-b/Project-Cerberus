@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "alexa-sdk": "^1.0.24"
+    "alexa-sdk": "^1.0.24",
+    "firebase": "^5.0.4"
   }
 }
