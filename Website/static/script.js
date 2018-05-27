@@ -3,9 +3,7 @@ function putEverythinginArrays(dbRefObject,callback){
     snapshot.forEach(childSnapshot => {
       arrayOfDates.push(childSnapshot.key); //********************
       console.log(childSnapshot.key); //prints date
-      document.getElementById("events").innerHTML += "<h2>";
       document.getElementById("events").innerHTML += childSnapshot.key;
-        document.getElementById("events").innerHTML += "</h2>";
       childSnapshot.forEach(anotherChildSnapShot =>{
         arrayOfHours.push(anotherChildSnapShot.key); //**********************
         document.getElementById("events").innerHTML += "<li>";
