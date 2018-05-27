@@ -7,16 +7,51 @@ from datetime import timezone
 from pytz import timezone
 import serial
 from firebase import firebase
-#import pyrebase
+import subprocess
+import json
+import smtplib
+import uuid
+import os
+import glob
+from os.path import basename
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
+
+cmd = 'python /home/pi/Desktop/alexaHomeSecurity/Website/simpleWeb.py'
 FIREBASE_ROOT = 'https://guardian-dbd05.firebaseio.com/'
 firebase = firebase.FirebaseApplication(FIREBASE_ROOT, None)
 
-#Arduino Communication
+#start server that livestreams
+p=subprocess.Popen(cmd,shell=True)
+
+#communication to Arduino
 serial_port = '/dev/ttyUSB0'
 baud_rate = 9600
-ser = serial.Serial(serial_port, baud_rate)
-# Firebase database to hold data for this whole project
+ser = serial.Serial(serial_port,baud_rate)
+s = [0]
 
+def send_email():
+    fromaddr = "pitestpi11@gmail.com"
+    toaddr = "alexandra.bocereg@yahoo.com"
+    text = 'Motion has been detected! Check this link to see a livestream '
+    text += ' 172.20.10.5:5000'
+    subject = 'Security ALERT!'
+    message = 'Suject: {}\n\n{}'.format(subject,text)
+    msg = MIMEMultipart()
+    msg['From'] = fromaddr
+    msg['To'] = toaddr
+    msg['Date'] = formatdate(localtime=True)
+    msg['Subject'] = subject
+    msg.attach(MIMEText(text))
+    username = "pitestpi11@gmail.com"
+    password = "pitestpi1"
+    server = smtplib.SMTP('smtp.gmail.com:587')
+    server.starttls()
+    server.login(username, password)
+    server.sendmail(fromaddr, toaddr, msg.as_string())
+    server.quit()
 
 '''
 # disable warnings sometimes printed when using SPI bus on Raspberry Pi
@@ -65,10 +100,16 @@ def handle(msg):
 
 sensorLocation = "kitchen"
 try:
+    ok = 0
     while(1):
         result = firebase.get('/armed',None)
+        #check if motion detected
+        #read_serial = ser.readline()
+        #s[0] = int (ser.readline(),10)
         #print(result)
         if result == 'true':
+            #HERE CHECK IF MOTION DETECTED SO U CAN ALERT THE USER
+            #if(s[0]==1): also change here ok s.t mail is sent each time
             hour = "%H:%M:%S"
             date = "%d-%m-%Y"
             now_time = datetime.now(timezone('UTC'))
@@ -83,21 +124,15 @@ try:
             print("Add code of serial stream here")
             motion = 1
             if motion == 1:
-                #hour = "%H:%M:%S"
-                #date = "%d-%m-%Y"
-                #now_time = datetime.now(timezone('UTC'))
-                #now_RO = now_time.astimezone(timezone('Europe/Athens'))
-                #print(now_RO.strftime(hour))
-                #print(now_RO.strftime(date))
                 eventJson = {"motion": "detected in {0}".format(sensorLocation)} #add sensor which detected motion
-                #print(event)
-                #print(new_event)
                 eventpath = '/events/'+now_RO.strftime(date)+'/'+now_RO.strftime(hour)
                 print(eventpath)
                 firebase.patch(eventpath,eventJson)
                 time.sleep(2)
-
+                if ok==0:
+                    send_email()
+                    ok=1
 
 except KeyboardInterrupt as e:			# catch KeyboardInterrupt
 	stream.close()						# close the stream and exit program
-	print()
+	elseprint()
