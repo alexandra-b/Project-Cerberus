@@ -27,9 +27,9 @@ firebase = firebase.FirebaseApplication(FIREBASE_ROOT, None)
 p=subprocess.Popen(cmd,shell=True)
 
 #communication to Arduino
-serial_port = '/dev/ttyUSB0'
+serial_port = '/dev/ttyUSB1'
 baud_rate = 9600
-ser = serial.Serial(serial_port,baud_rate)
+ser = serial.Serial(serial_port,baud_rate,timeout = 3)
 s = [0]
 
 def send_email():
@@ -98,41 +98,81 @@ def handle(msg):
 '''
 #stream = firebase.child("/armed").stream(handle) 	# create a stream to listen for changes for /armed in Firebase
 
+was_on         = False  #Guardian pre-state for   activating
+was_stopped    = False  #Guardian pre-state for deactivating
 sensorLocation = "kitchen"
 try:
     ok = 0
     while(1):
         result = firebase.get('/armed',None)
+        #print(result)
+        time.sleep(1)
+
         #check if motion detected
         #read_serial = ser.readline()
         #s[0] = int (ser.readline(),10)
         #print(result)
-        if result == 'true':
+        ok = 0;
+        if result == "true":
+
+            # Add Guardian event to the firebase
+            hour = "%H:%M:%S"
+            date = "%d-%m-%Y"
+            now_time = datetime.now(timezone('UTC'))
+            now_RO = now_time.astimezone(timezone('Europe/Athens'))
+            #print(now_RO.strftime(hour))
+            #print(now_RO.strftime(date))
+
+            if (was_on == False):
+                dayEventPath = '/events/'+now_RO.strftime(date)+'/Guardian'
+                dayJson = {"start": now_RO.strftime(hour)}
+                firebase.patch(dayEventPath,dayJson)
+                print("was_n True")
+                was_on = True #Only update the 'start' once for this entry
+
+            read_serial = ser.readline()
+            #s[0]        = str(int (read_serial,10)) #str(int (ser.readline(),10))
+            #if(s[0] == '1'):
+            read_byte = read_serial+b'0'
+            transformed_read_byte = (str (read_byte))
+            getLen = len(transformed_read_byte)
+            #print(transformed_read_byte + " " )
+            #print(len(transformed_read_byte))
+            #print(" ")
+            #if(s[0] == '0'):
+             #   prev = 0
             #HERE CHECK IF MOTION DETECTED SO U CAN ALERT THE USER
-            #if(s[0]==1): also change here ok s.t mail is sent each time
+            if(getLen > 5):#s[0] == '1'):# and prev == 0): #also change here ok s.t mail is sent each time
+                #print("Add code of serial stream here")
+                motion = 1
+                prev   = 1
+
+                # Add trigger event into the database at the day created by Alexa init
+                eventJson = {"motion": "detected in {0}".format(sensorLocation)} #add sensor which detected motion
+                eventpath = '/events/'+now_RO.strftime(date)+'/'+now_RO.strftime(hour)
+                print(eventpath)
+                firebase.patch(eventpath,eventJson)
+
+                time.sleep(2)
+                if ok == 0:
+                    send_email()
+                    ok = 1
+            was_on = True
+
+        if (result == "false" and was_on == True and was_stopped == False):
             hour = "%H:%M:%S"
             date = "%d-%m-%Y"
             now_time = datetime.now(timezone('UTC'))
             now_RO = now_time.astimezone(timezone('Europe/Athens'))
             print(now_RO.strftime(hour))
             print(now_RO.strftime(date))
-            print("Add code of serial stream here")
-            motion = 1
-            dayEventPath = '/events/'+now_RO.strftime(date)+'/Alexa'
-            dayJson = {"start": now_RO.strftime(hour)}
+            dayEventPath = '/events/'+now_RO.strftime(date)+'/Guardian'
+            dayJson = {"stop": now_RO.strftime(hour)}
             firebase.patch(dayEventPath,dayJson)
-            print("Add code of serial stream here")
-            motion = 1
-            if motion == 1:
-                eventJson = {"motion": "detected in {0}".format(sensorLocation)} #add sensor which detected motion
-                eventpath = '/events/'+now_RO.strftime(date)+'/'+now_RO.strftime(hour)
-                print(eventpath)
-                firebase.patch(eventpath,eventJson)
-                time.sleep(2)
-                if ok==0:
-                    send_email()
-                    ok=1
+            print("was_stopped True")
+            was_on      = False
+            was_stopped = True   #Only update the 'stop' once for this entry
 
 except KeyboardInterrupt as e:			# catch KeyboardInterrupt
-	stream.close()						# close the stream and exit program
+	stream.close()		         # close the stream and exit program
 	elseprint()
