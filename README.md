@@ -1,3 +1,3 @@
 # Guardian
-## IoT Project: Home Security
-## Integrates Flask, AWS, Firebase
+ IoT Project: Home Security
+ Integrates Flask, AWS, Firebase
